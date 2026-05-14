@@ -142,6 +142,7 @@ public class MitCommand {
             sendSuccess(source, "§a[MIT] ✅ Committed §e[" + commit.id + "]§a \"" + commit.message + "\"  §a+" + diff[0] + " §c-" + diff[1]);
         }
         MitStorage.save(source.getServer());
+        repo.resetPendingChanges();  // clear M indicator
         return 1;
     }
 
@@ -176,6 +177,7 @@ public class MitCommand {
         }
 
         MitStorage.save(source.getServer());
+        repo.resetPendingChanges();  // clear M indicator
         sendSuccess(source, "§a[MIT] ⏪ Checked out §e[" + commit.id + "]§a \"" + commit.message + "\" — world, position & inventory restored!");
         sendInfo(source, "§7  Tip: Use /mit commit \"msg\" --overwrite to start a new timeline from here.");
         return 1;

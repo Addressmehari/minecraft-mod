@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.level.BlockEvent;
 
 // The value here should match an entry in the META-INF/mods.toml file
 @Mod(ExampleMod.MODID)
@@ -168,17 +169,29 @@ public class ExampleMod {
         }
     }
 
-    // ── Client FORGE bus events (key press detection) ────────────────────────
+    // ── Client FORGE bus events (key press) ───────────────────────────
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
     public static class ClientForgeEvents {
         @SubscribeEvent
         public static void onKeyInput(InputEvent.Key event) {
             if (ClientModEvents.OPEN_MIT_KEY.consumeClick()) {
                 Minecraft mc = Minecraft.getInstance();
-                if (mc.screen == null) {
-                    mc.setScreen(new MitScreen());
-                }
+                if (mc.screen == null) mc.setScreen(new MitScreen());
             }
+        }
+    }
+
+    // ── Server FORGE bus events (block change tracking) ───────────────────
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+    public static class ForgeBlockEvents {
+        @SubscribeEvent
+        public static void onBlockBreak(BlockEvent.BreakEvent event) {
+            MitRepository.getInstance().trackBlockBroken(event.getPos());
+        }
+
+        @SubscribeEvent
+        public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
+            MitRepository.getInstance().trackBlockPlaced(event.getPos());
         }
     }
 }

@@ -21,6 +21,11 @@ public class MitRepository {
     // Index of the currently checked out commit (-1 = tip/latest)
     private int headIndex = -1;
 
+    // Dirty tracking — incremented by block events
+    private boolean dirty         = false;
+    private int     pendingPlaced = 0;
+    private int     pendingBroken = 0;
+
     private MitRepository() {}
 
     public static MitRepository getInstance() {
@@ -45,9 +50,42 @@ public class MitRepository {
         headIndex = -1;
     }
 
-    public boolean isInitialized() { return initialized; }
-    public BlockPos getCorner1()   { return corner1; }
-    public BlockPos getCorner2()   { return corner2; }
+    public boolean isInitialized()  { return initialized; }
+    public BlockPos getCorner1()    { return corner1; }
+    public BlockPos getCorner2()    { return corner2; }
+    public boolean isDirty()        { return dirty; }
+    public int getPendingPlaced()   { return pendingPlaced; }
+    public int getPendingBroken()   { return pendingBroken; }
+
+    /** Called when a block inside the tracked region is placed. */
+    public void trackBlockPlaced(BlockPos pos) {
+        if (!initialized || !isInRegion(pos)) return;
+        dirty = true;
+        pendingPlaced++;
+    }
+
+    /** Called when a block inside the tracked region is broken. */
+    public void trackBlockBroken(BlockPos pos) {
+        if (!initialized || !isInRegion(pos)) return;
+        dirty = true;
+        pendingBroken++;
+    }
+
+    /** Reset dirty state after a commit or checkout. */
+    public void resetPendingChanges() {
+        dirty = false;
+        pendingPlaced = 0;
+        pendingBroken = 0;
+    }
+
+    private boolean isInRegion(BlockPos pos) {
+        int x1 = Math.min(corner1.getX(), corner2.getX()), x2 = Math.max(corner1.getX(), corner2.getX());
+        int y1 = Math.min(corner1.getY(), corner2.getY()), y2 = Math.max(corner1.getY(), corner2.getY());
+        int z1 = Math.min(corner1.getZ(), corner2.getZ()), z2 = Math.max(corner1.getZ(), corner2.getZ());
+        return pos.getX() >= x1 && pos.getX() <= x2
+            && pos.getY() >= y1 && pos.getY() <= y2
+            && pos.getZ() >= z1 && pos.getZ() <= z2;
+    }
 
     /** Called by MitStorage to restore region from disk (no clearing of commits). */
     public void initFromStorage(BlockPos c1, BlockPos c2) {
