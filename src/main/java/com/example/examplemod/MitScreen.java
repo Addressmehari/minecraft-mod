@@ -64,7 +64,7 @@ public class MitScreen extends Screen {
         int inputY = inputAreaY();
         commitInput = new EditBox(font,
             panelX + PADDING, inputY + 10,
-            210, 16,
+            170, 16, // narrowed from 210
             Component.literal(""));
         commitInput.setHint(Component.literal("Commit message..."));
         commitInput.setMaxLength(64);
@@ -80,7 +80,7 @@ public class MitScreen extends Screen {
                     mc.player.connection.sendCommand("mit commit \"" + msg + "\"");
                 onClose();
             })
-            .pos(panelX + PADDING + 218, inputY + 7)
+            .pos(panelX + PANEL_W - PADDING - 86, inputY + 7) // right-aligned
             .size(86, 20)
             .build()
         );
@@ -223,9 +223,10 @@ public class MitScreen extends Screen {
         g.fill(panelX + 2, inputY, panelX + PANEL_W - 2, inputY + 1, sepColor);
 
         // Pending diff shown to the right of input box when modified
+        // Pending diff shown in the middle gap
         if (dirty) {
             String pending = "§e⬤  §a+" + repo.getPendingPlaced() + "  §c-" + repo.getPendingBroken();
-            g.drawString(font, pending, panelX + PANEL_W - 145, inputY + 11, 0xFFFFFFFF, true);
+            g.drawString(font, pending, panelX + PADDING + 178, inputY + 11, 0xFFFFFFFF, true);
         }
     }
 
