@@ -134,6 +134,9 @@ public class ExampleMod {
                 return 1;
             })
         );
+        
+        // Register our new MIT command
+        MitCommand.register(event.getDispatcher());
     }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent

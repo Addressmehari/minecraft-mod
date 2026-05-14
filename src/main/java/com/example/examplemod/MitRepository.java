@@ -1,0 +1,119 @@
+package com.example.examplemod;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.*;
+
+public class MitRepository {
+
+    // Singleton — one repo per game session
+    private static MitRepository instance;
+
+    // The tracked region: from corner1 to corner2
+    private BlockPos corner1;
+    private BlockPos corner2;
+    private boolean initialized = false;
+
+    // All commits in order
+    private final List<MitCommit> commits = new ArrayList<>();
+
+    // Index of the currently checked out commit (-1 = tip/latest)
+    private int headIndex = -1;
+
+    private MitRepository() {}
+
+    public static MitRepository getInstance() {
+        if (instance == null) instance = new MitRepository();
+        return instance;
+    }
+
+    /** Reset for a new world/session */
+    public static void reset() {
+        instance = new MitRepository();
+    }
+
+    // -------------------------------------------------------------------------
+    // Init
+    // -------------------------------------------------------------------------
+
+    public void init(BlockPos playerPos, int radius) {
+        corner1 = playerPos.offset(-radius, -radius, -radius);
+        corner2 = playerPos.offset(radius, radius, radius);
+        initialized = true;
+        commits.clear();
+        headIndex = -1;
+    }
+
+    public boolean isInitialized() { return initialized; }
+    public BlockPos getCorner1()   { return corner1; }
+    public BlockPos getCorner2()   { return corner2; }
+
+    // -------------------------------------------------------------------------
+    // Commit
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a commit from a snapshot and appends it to the timeline.
+     * If overwrite is true and HEAD is not at the tip, the commits after HEAD
+     * are erased first (creates a new timeline from that point).
+     */
+    public MitCommit commit(String message, Map<BlockPos, BlockState> snapshot, boolean overwrite) {
+        if (overwrite && headIndex >= 0 && headIndex < commits.size() - 1) {
+            // Erase everything after the current HEAD
+            commits.subList(headIndex + 1, commits.size()).clear();
+        }
+
+        String id = generateId();
+        MitCommit commit = new MitCommit(id, message, snapshot);
+        commits.add(commit);
+        headIndex = commits.size() - 1;
+        return commit;
+    }
+
+    // -------------------------------------------------------------------------
+    // Checkout
+    // -------------------------------------------------------------------------
+
+    /** Returns the commit matching the given id, or null if not found. */
+    public MitCommit checkout(String id) {
+        for (int i = 0; i < commits.size(); i++) {
+            if (commits.get(i).id.equalsIgnoreCase(id)) {
+                headIndex = i;
+                return commits.get(i);
+            }
+        }
+        return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Log
+    // -------------------------------------------------------------------------
+
+    public List<MitCommit> getLog() {
+        return Collections.unmodifiableList(commits);
+    }
+
+    public int getHeadIndex() { return headIndex; }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /** Generates a unique 5-character alphanumeric ID (e.g. "a3f9k") */
+    private String generateId() {
+        String chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        Random rng = new Random();
+        Set<String> existing = new HashSet<>();
+        for (MitCommit c : commits) existing.add(c.id);
+
+        String id;
+        do {
+            StringBuilder sb = new StringBuilder(5);
+            for (int i = 0; i < 5; i++) sb.append(chars.charAt(rng.nextInt(chars.length())));
+            id = sb.toString();
+        } while (existing.contains(id));
+
+        return id;
+    }
+}
