@@ -69,17 +69,19 @@ public class MitRepository {
 
     /**
      * Creates a commit from a snapshot and appends it to the timeline.
-     * If overwrite is true and HEAD is not at the tip, the commits after HEAD
-     * are erased first (creates a new timeline from that point).
+     * If overwrite is true and HEAD is not at the tip, the commits after HEAD are erased first.
      */
-    public MitCommit commit(String message, Map<BlockPos, BlockState> snapshot, boolean overwrite) {
+    public MitCommit commit(String message, Map<BlockPos, BlockState> snapshot, boolean overwrite,
+                            int placed, int broken,
+                            double px, double py, double pz, float yaw, float pitch,
+                            net.minecraft.nbt.ListTag inventoryNbt) {
         if (overwrite && headIndex >= 0 && headIndex < commits.size() - 1) {
-            // Erase everything after the current HEAD
             commits.subList(headIndex + 1, commits.size()).clear();
         }
 
         String id = generateId();
-        MitCommit commit = new MitCommit(id, message, snapshot);
+        MitCommit commit = new MitCommit(id, message, snapshot,
+            placed, broken, px, py, pz, yaw, pitch, inventoryNbt);
         commits.add(commit);
         headIndex = commits.size() - 1;
         return commit;

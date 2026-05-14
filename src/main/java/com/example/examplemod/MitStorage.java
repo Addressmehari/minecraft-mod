@@ -19,10 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Handles saving and loading the MitRepository to/from
- * <world_folder>/mit_repo.dat using Minecraft's NBT format.
- */
 public class MitStorage {
 
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -38,7 +34,7 @@ public class MitStorage {
 
         CompoundTag root = new CompoundTag();
 
-        // Region corners
+        // Region
         BlockPos c1 = repo.getCorner1(), c2 = repo.getCorner2();
         root.putIntArray("corner1", new int[]{c1.getX(), c1.getY(), c1.getZ()});
         root.putIntArray("corner2", new int[]{c2.getX(), c2.getY(), c2.getZ()});
@@ -51,6 +47,17 @@ public class MitStorage {
             ct.putString("id",        commit.id);
             ct.putString("message",   commit.message);
             ct.putString("timestamp", commit.timestamp);
+            ct.putInt("placed",       commit.blocksPlaced);
+            ct.putInt("broken",       commit.blocksBroken);
+
+            // Player state
+            ct.putDouble("px",    commit.playerX);
+            ct.putDouble("py",    commit.playerY);
+            ct.putDouble("pz",    commit.playerZ);
+            ct.putFloat("yaw",    commit.playerYaw);
+            ct.putFloat("pitch",  commit.playerPitch);
+            if (commit.inventoryNbt != null)
+                ct.put("inventory", commit.inventoryNbt);
 
             // Blocks
             ListTag blockList = new ListTag();
@@ -67,13 +74,12 @@ public class MitStorage {
         }
         root.put("commits", commitList);
 
-        // Write to disk
         Path path = server.getWorldPath(SAVE_PATH);
         try {
             NbtIo.writeCompressed(root, path);
-            LOGGER.info("[MIT] Saved {} commit(s) to {}", repo.getLog().size(), path);
+            LOGGER.info("[MIT] Saved {} commit(s).", repo.getLog().size());
         } catch (IOException e) {
-            LOGGER.error("[MIT] Failed to save repository: {}", e.getMessage());
+            LOGGER.error("[MIT] Failed to save: {}", e.getMessage());
         }
     }
 
@@ -87,7 +93,7 @@ public class MitStorage {
 
         Path path = server.getWorldPath(SAVE_PATH);
         if (!Files.exists(path)) {
-            LOGGER.info("[MIT] No saved repository found. Start with /mit init.");
+            LOGGER.info("[MIT] No saved repository found. Use /mit init to start.");
             return;
         }
 
@@ -95,27 +101,32 @@ public class MitStorage {
         try {
             root = NbtIo.readCompressed(path, NbtAccounter.unlimitedHeap());
         } catch (IOException e) {
-            LOGGER.error("[MIT] Failed to load repository: {}", e.getMessage());
+            LOGGER.error("[MIT] Failed to load: {}", e.getMessage());
             return;
         }
 
-        // Restore region
         if (!root.contains("corner1") || !root.contains("corner2")) return;
         int[] c1 = root.getIntArray("corner1");
         int[] c2 = root.getIntArray("corner2");
         repo.initFromStorage(new BlockPos(c1[0], c1[1], c1[2]), new BlockPos(c2[0], c2[1], c2[2]));
 
-        // Block registry for reading BlockStates
         HolderGetter<Block> blockGetter = server.overworld().holderLookup(Registries.BLOCK);
 
-        // Restore commits
         ListTag commitList = root.getList("commits", Tag.TAG_COMPOUND);
         List<MitCommit> loaded = new ArrayList<>();
         for (int i = 0; i < commitList.size(); i++) {
-            CompoundTag ct    = commitList.getCompound(i);
-            String id         = ct.getString("id");
-            String message    = ct.getString("message");
-            String timestamp  = ct.getString("timestamp");
+            CompoundTag ct   = commitList.getCompound(i);
+            String id        = ct.getString("id");
+            String message   = ct.getString("message");
+            String timestamp = ct.getString("timestamp");
+            int placed       = ct.getInt("placed");
+            int broken       = ct.getInt("broken");
+            double px        = ct.getDouble("px");
+            double py        = ct.getDouble("py");
+            double pz        = ct.getDouble("pz");
+            float yaw        = ct.getFloat("yaw");
+            float pitch      = ct.getFloat("pitch");
+            ListTag invNbt   = ct.contains("inventory") ? ct.getList("inventory", Tag.TAG_COMPOUND) : new ListTag();
 
             ListTag blockList = ct.getList("blocks", Tag.TAG_COMPOUND);
             Map<BlockPos, BlockState> blocks = new HashMap<>();
@@ -125,7 +136,7 @@ public class MitStorage {
                 BlockState state = NbtUtils.readBlockState(blockGetter, bt.getCompound("state"));
                 blocks.put(pos, state);
             }
-            loaded.add(new MitCommit(id, message, timestamp, blocks));
+            loaded.add(new MitCommit(id, message, timestamp, blocks, placed, broken, px, py, pz, yaw, pitch, invNbt));
         }
 
         repo.loadCommits(loaded, root.getInt("headIndex"));

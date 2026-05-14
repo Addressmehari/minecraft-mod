@@ -16,11 +16,11 @@ public class MitScreen extends Screen {
     // ── Layout constants ──────────────────────────────────────────────────────
     private static final int PANEL_W     = 370;
     private static final int PANEL_H     = 280;
-    private static final int ROW_H       = 34;
+    private static final int ROW_H       = 42;
     private static final int PADDING     = 14;
     private static final int HEADER_H    = 32;
     private static final int FOOTER_H    = 32;
-    private static final int VISIBLE_ROWS = 6;
+    private static final int VISIBLE_ROWS = 5;
 
     // ── Colour palette ────────────────────────────────────────────────────────
     private static final int COL_BG        = 0xFF080814;  // fully opaque
@@ -66,7 +66,7 @@ public class MitScreen extends Screen {
         for (int i = scrollOffset; i < end; i++) {
             final MitCommit commit = commits.get(i);
             int row  = i - scrollOffset;
-            int btnY = panelY + HEADER_H + 2 + row * ROW_H + 9;
+            int btnY = panelY + HEADER_H + 2 + row * ROW_H + 13;
 
             addRenderableWidget(
                 Button.builder(Component.literal("⏪ Revert"), btn -> {
@@ -151,7 +151,7 @@ public class MitScreen extends Screen {
                 g.fill(panelX + 2, rowY, panelX + PANEL_W - 2, rowY + 1, COL_ROW_SEP);
 
             // ► or  ·  pointer
-            g.drawString(font, isHead ? "§b►" : "§8·", panelX + PADDING, rowY + 12, 0xFFFFFFFF, true);
+            g.drawString(font, isHead ? "§b►" : "§8·", panelX + PADDING, rowY + 14, 0xFFFFFFFF, true);
 
             // Commit ID badge
             g.fill(panelX + PADDING + 10, rowY + 9, panelX + PADDING + 52, rowY + 22, 0xFF1A2244);
@@ -161,12 +161,16 @@ public class MitScreen extends Screen {
             g.drawString(font, "§f\"" + c.message + "\"", panelX + PADDING + 57, rowY + 7, 0xFFFFFFFF, true);
 
             // Timestamp
-            g.drawString(font, "§8" + c.timestamp, panelX + PADDING + 57, rowY + 19, 0xFFAAAAAA, true);
+            g.drawString(font, "§8" + c.timestamp, panelX + PADDING + 57, rowY + 18, 0xFFAAAAAA, true);
+
+            // Block diff stats
+            String statsText = "§a+" + c.blocksPlaced + " placed  §c-" + c.blocksBroken + " broken";
+            g.drawString(font, statsText, panelX + PADDING + 57, rowY + 29, 0xFFFFFFFF, true);
 
             // HEAD badge
             if (isHead) {
-                g.fill(panelX + PADDING + 10, rowY + 23, panelX + PADDING + 44, rowY + 32, 0xFF223366);
-                g.drawString(font, "§bHEAD", panelX + PADDING + 12, rowY + 24, 0xFFFFFFFF, true);
+                g.fill(panelX + PADDING + 10, rowY + 25, panelX + PADDING + 46, rowY + 36, 0xFF223366);
+                g.drawString(font, "§bHEAD", panelX + PADDING + 12, rowY + 27, 0xFFFFFFFF, true);
             }
         }
 

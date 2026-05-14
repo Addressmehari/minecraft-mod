@@ -3,13 +3,15 @@ package com.example.examplemod;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.HashMap;
@@ -100,16 +102,46 @@ public class MitCommand {
             return 0;
         }
 
-        ServerLevel level = source.getLevel();
+        ServerPlayer player = source.getPlayer();
+        ServerLevel level   = source.getLevel();
+
+        // 1. Capture world snapshot
         Map<BlockPos, BlockState> snapshot = captureSnapshot(level, repo.getCorner1(), repo.getCorner2());
-        MitCommit commit = repo.commit(message, snapshot, overwrite);
+
+        // 2. Compute diff vs the previous commit
+        List<MitCommit> log = repo.getLog();
+        int[] diff = {0, 0}; // [placed, broken]
+        if (!log.isEmpty()) {
+            Map<BlockPos, BlockState> prev = log.get(log.size() - 1).blocks;
+            diff = computeDiff(prev, snapshot);
+        } else {
+            // First commit — count non-air blocks as "placed"
+            for (BlockState s : snapshot.values()) if (!s.isAir()) diff[0]++;
+        }
+
+        // 3. Capture player state
+        double px = 0, py = 0, pz = 0;
+        float yaw = 0, pitch = 0;
+        ListTag invNbt = new ListTag();
+        if (player != null) {
+            px    = player.getX();
+            py    = player.getY();
+            pz    = player.getZ();
+            yaw   = player.getYRot();
+            pitch = player.getXRot();
+            player.getInventory().save(invNbt);
+        }
+
+        // 4. Save commit
+        MitCommit commit = repo.commit(message, snapshot, overwrite,
+            diff[0], diff[1], px, py, pz, yaw, pitch, invNbt);
 
         if (overwrite) {
-            sendSuccess(source, "§a[MIT] ⚡ Overwrote timeline! New commit: §e[" + commit.id + "]§a \"" + commit.message + "\"");
+            sendSuccess(source, "§a[MIT] ⚡ Overwrote timeline! §e[" + commit.id + "]§a \"" + commit.message + "\"");
         } else {
-            sendSuccess(source, "§a[MIT] ✅ Committed §e[" + commit.id + "]§a \"" + commit.message + "\" — " + snapshot.size() + " blocks saved.");
+            sendSuccess(source, "§a[MIT] ✅ Committed §e[" + commit.id + "]§a \"" + commit.message + "\"  §a+" + diff[0] + " §c-" + diff[1]);
         }
-        MitStorage.save(source.getServer());  // persist to disk
+        MitStorage.save(source.getServer());
         return 1;
     }
 
@@ -127,12 +159,24 @@ public class MitCommand {
             return 0;
         }
 
-        // Restore the blocks
+        // Restore world blocks
         ServerLevel level = source.getLevel();
         restoreSnapshot(level, commit.blocks);
 
-        MitStorage.save(source.getServer());  // update HEAD pointer on disk
-        sendSuccess(source, "§a[MIT] ⏪ Checked out §e[" + commit.id + "]§a \"" + commit.message + "\"");
+        // Restore player position and inventory
+        ServerPlayer player = source.getPlayer();
+        if (player != null) {
+            player.teleportTo(commit.playerX, commit.playerY, commit.playerZ);
+            player.setYRot(commit.playerYaw);
+            player.setXRot(commit.playerPitch);
+            player.getInventory().clearContent();
+            if (commit.inventoryNbt != null && !commit.inventoryNbt.isEmpty()) {
+                player.getInventory().load(commit.inventoryNbt);
+            }
+        }
+
+        MitStorage.save(source.getServer());
+        sendSuccess(source, "§a[MIT] ⏪ Checked out §e[" + commit.id + "]§a \"" + commit.message + "\" — world, position & inventory restored!");
         sendInfo(source, "§7  Tip: Use /mit commit \"msg\" --overwrite to start a new timeline from here.");
         return 1;
     }
@@ -205,9 +249,22 @@ public class MitCommand {
     }
 
     private static void restoreSnapshot(ServerLevel level, Map<BlockPos, BlockState> snapshot) {
-        for (Map.Entry<BlockPos, BlockState> entry : snapshot.entrySet()) {
+        for (Map.Entry<BlockPos, BlockState> entry : snapshot.entrySet())
             level.setBlock(entry.getKey(), entry.getValue(), 3);
+    }
+
+    /** Computes how many blocks were placed / broken between two snapshots. */
+    private static int[] computeDiff(Map<BlockPos, BlockState> prev, Map<BlockPos, BlockState> next) {
+        int placed = 0, broken = 0;
+        for (Map.Entry<BlockPos, BlockState> e : next.entrySet()) {
+            BlockState prevState = prev.getOrDefault(e.getKey(), Blocks.AIR.defaultBlockState());
+            BlockState nextState = e.getValue();
+            boolean wasAir = prevState.isAir();
+            boolean isAir  = nextState.isAir();
+            if (!wasAir && isAir)  broken++;
+            else if (wasAir && !isAir) placed++;
         }
+        return new int[]{placed, broken};
     }
 
     // -------------------------------------------------------------------------
