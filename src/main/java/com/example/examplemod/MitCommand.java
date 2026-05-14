@@ -2,6 +2,9 @@ package com.example.examplemod;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -12,11 +15,23 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class MitCommand {
 
     // How far around the player's feet the init region extends
     private static final int RADIUS = 30;
+
+    // Suggestion provider: shows all commit IDs + messages in tab-complete
+    private static final SuggestionProvider<CommandSourceStack> COMMIT_SUGGESTIONS =
+        (context, builder) -> {
+            List<MitCommit> commits = MitRepository.getInstance().getLog();
+            for (MitCommit commit : commits) {
+                // Each suggestion = the ID, tooltip = the message
+                builder.suggest(commit.id, Component.literal("\"" + commit.message + "\"  " + commit.timestamp));
+            }
+            return builder.buildFuture();
+        };
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
 
@@ -57,9 +72,10 @@ public class MitCommand {
                 )
             )
 
-            // /mit checkout <id>
+            // /mit checkout <id>  — with dynamic tab-complete showing id + message
             .then(Commands.literal("checkout")
                 .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(COMMIT_SUGGESTIONS)
                     .executes(ctx -> doCheckout(ctx.getSource(), StringArgumentType.getString(ctx, "id")))
                 )
             )
