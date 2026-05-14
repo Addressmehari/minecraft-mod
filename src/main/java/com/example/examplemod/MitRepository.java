@@ -49,6 +49,20 @@ public class MitRepository {
     public BlockPos getCorner1()   { return corner1; }
     public BlockPos getCorner2()   { return corner2; }
 
+    /** Called by MitStorage to restore region from disk (no clearing of commits). */
+    public void initFromStorage(BlockPos c1, BlockPos c2) {
+        this.corner1 = c1;
+        this.corner2 = c2;
+        this.initialized = true;
+    }
+
+    /** Called by MitStorage to bulk-load commits and restore HEAD pointer. */
+    public void loadCommits(List<MitCommit> loaded, int head) {
+        commits.clear();
+        commits.addAll(loaded);
+        this.headIndex = head;
+    }
+
     // -------------------------------------------------------------------------
     // Commit
     // -------------------------------------------------------------------------

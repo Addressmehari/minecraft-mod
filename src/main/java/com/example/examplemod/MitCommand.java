@@ -53,6 +53,7 @@ public class MitCommand {
                 .executes(ctx -> {
                     BlockPos pos = BlockPos.containing(ctx.getSource().getPosition());
                     MitRepository.getInstance().init(pos, RADIUS);
+                    MitStorage.save(ctx.getSource().getServer());  // persist immediately
                     sendSuccess(ctx.getSource(),
                         "§a[MIT] Initialized! Tracking §e" + (RADIUS * 2 + 1) + "x" + (RADIUS * 2 + 1) + "x" + (RADIUS * 2 + 1)
                         + "§a region centered on your position.");
@@ -108,6 +109,7 @@ public class MitCommand {
         } else {
             sendSuccess(source, "§a[MIT] ✅ Committed §e[" + commit.id + "]§a \"" + commit.message + "\" — " + snapshot.size() + " blocks saved.");
         }
+        MitStorage.save(source.getServer());  // persist to disk
         return 1;
     }
 
@@ -129,6 +131,7 @@ public class MitCommand {
         ServerLevel level = source.getLevel();
         restoreSnapshot(level, commit.blocks);
 
+        MitStorage.save(source.getServer());  // update HEAD pointer on disk
         sendSuccess(source, "§a[MIT] ⏪ Checked out §e[" + commit.id + "]§a \"" + commit.message + "\"");
         sendInfo(source, "§7  Tip: Use /mit commit \"msg\" --overwrite to start a new timeline from here.");
         return 1;
@@ -143,20 +146,42 @@ public class MitCommand {
         }
 
         List<MitCommit> log = repo.getLog();
+        String sep = "§8§m──────────────────────────────────────────§r";
+
+        // Header
+        source.sendSystemMessage(Component.literal(sep));
+        source.sendSystemMessage(Component.literal(
+            "§b◈ §fMIT  §8│  §7Commit History  §8(" + log.size() + " total)"
+        ));
+        source.sendSystemMessage(Component.literal(sep));
+
         if (log.isEmpty()) {
-            sendInfo(source, "§7[MIT] No commits yet. Use §e/mit commit \"message\"§7 to save a snapshot.");
-            return 1;
+            source.sendSystemMessage(Component.literal("§7  No commits yet."));
+            source.sendSystemMessage(Component.literal("§8  Use /mit commit \"message\" to start."));
+        } else {
+            int headIndex = repo.getHeadIndex();
+            for (int i = log.size() - 1; i >= 0; i--) {
+                MitCommit c = log.get(i);
+                boolean isHead = (i == headIndex);
+                String pointer = isHead ? "§b►" : "§8 ";
+                String headTag = isHead ? "  §b§l[HEAD]§r" : "";
+                String num     = "§8#" + (i + 1) + " ";
+
+                source.sendSystemMessage(Component.literal(
+                    " " + pointer + " " + num + "§e[" + c.id + "]  §f\"" + c.message + "\"" + headTag
+                ));
+                source.sendSystemMessage(Component.literal(
+                    "       §8" + c.timestamp
+                ));
+            }
         }
 
-        sendInfo(source, "§a[MIT] Commit History:");
-        int headIndex = repo.getHeadIndex();
-        for (int i = log.size() - 1; i >= 0; i--) {
-            MitCommit c = log.get(i);
-            String pointer = (i == headIndex) ? "§b► " : "§7  ";
-            source.sendSystemMessage(Component.literal(
-                pointer + "§e[" + c.id + "] §f\"" + c.message + "\" §8(" + c.timestamp + ")"
-            ));
-        }
+        // Footer tip
+        source.sendSystemMessage(Component.literal(sep));
+        source.sendSystemMessage(Component.literal(
+            "§7  Press §aG §7for visual UI  §8·  §7/mit checkout <id> §8to time travel"
+        ));
+        source.sendSystemMessage(Component.literal(sep));
         return 1;
     }
 

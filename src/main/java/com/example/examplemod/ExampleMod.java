@@ -2,6 +2,11 @@ package com.example.examplemod;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
+import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
@@ -122,8 +127,9 @@ public class ExampleMod {
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+        // Restore MIT repository from disk for this world
+        MitStorage.load(event.getServer());
     }
 
     @SubscribeEvent
@@ -139,14 +145,40 @@ public class ExampleMod {
         MitCommand.register(event.getDispatcher());
     }
 
-    // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
+    // ── Client MOD bus events (key registration, client setup) ──────────────────
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents {
+
+        public static final KeyMapping OPEN_MIT_KEY = new KeyMapping(
+            "key.examplemod.open_mit",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_G,
+            "key.categories.examplemod"
+        );
+
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+        }
+
+        @SubscribeEvent
+        public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+            event.register(OPEN_MIT_KEY);
+        }
+    }
+
+    // ── Client FORGE bus events (key press detection) ────────────────────────
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    public static class ClientForgeEvents {
+        @SubscribeEvent
+        public static void onKeyInput(InputEvent.Key event) {
+            if (ClientModEvents.OPEN_MIT_KEY.consumeClick()) {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.screen == null) {
+                    mc.setScreen(new MitScreen());
+                }
+            }
         }
     }
 }
